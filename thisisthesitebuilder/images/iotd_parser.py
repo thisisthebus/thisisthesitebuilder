@@ -7,8 +7,6 @@ import hashlib
 from PIL import Image, ExifTags
 from django.utils.text import slugify
 
-from thisisthebus.settings.constants import DATA_DIR, FRONTEND_DIR
-
 MAX_SIZE = 1600.0
 THUMB_SIZE = 400
 
@@ -23,8 +21,8 @@ def autorotate(image_file, orientation):
     return image_file
 
 
-def get_filename_for_day(day):
-    return "%s/compiled/images/%s.json" % (DATA_DIR, day)
+def get_filename_for_day(day, data_dir):
+    return "%s/compiled/images/%s.json" % (data_dir, day)
 
 
 def which_day(exif_date):
@@ -105,7 +103,7 @@ def write_to_file(filename, payload):
         print("-----------------------------------")
 
 
-def parse_iotd(image_filename):
+def parse_iotd(image_filename, data_dir, frontend_dir):
 
     image_filename = image_filename
     img = Image.open(image_filename)
@@ -148,18 +146,23 @@ def parse_iotd(image_filename):
         image_bytes = f.read(1024)
         image_checksum = hashlib.md5(image_bytes).hexdigest()[:8]
 
-    file_detail = slugify(new_iotd['caption'][:30]) + "__" if new_iotd['caption'] else ""
-    file_detail += image_checksum
+    slug = slugify(new_iotd['caption'][:30]) if new_iotd['caption'] else ""
+    file_detail = "{slug}__{hash}".format(slug=slug, hash=image_checksum)
+
     extension = image_filename.split('.')[-1]
 
     unchanged_filename = '/apps/iotd/img/unchanged/%s__%s.%s' % (img.filename.split('/')[-1], file_detail, extension)
     full_filename = '/apps/iotd/img/%s__%s.%s' % (day, file_detail, extension)
     thumb_filename = '/apps/iotd/img/thumbs/%s__%s.%s' % (day, file_detail, extension)
 
-    new_iotd['unchanged_url'] = unchanged_filename
-    new_iotd['full_url'] = full_filename
-    new_iotd['thumb_url'] = thumb_filename
+    # new_iotd['unchanged_url'] = unchanged_filename
+    # new_iotd['full_url'] = full_filename
+    # new_iotd['thumb_url'] = thumb_filename
     new_iotd['time'] = time
+    new_iotd['hash'] = image_checksum
+    new_iotd['slug'] = slug
+    new_iotd['orig'] = img.filename.split('/')[-1]
+    new_iotd['ext'] = extension
 
     h = float(img.size[0])
     w = float(img.size[1])
@@ -170,30 +173,30 @@ def parse_iotd(image_filename):
     thumb_size = h * thumb_resize_ratio, w * thumb_resize_ratio
 
     try:
-        with open(get_filename_for_day(day), 'r') as f:
+        with open(get_filename_for_day(day, data_dir), 'r') as f:
             this_day_meta = json.loads(f.read())
     except FileNotFoundError:
         this_day_meta = []
 
     this_day_meta.append(new_iotd)
 
-    write_to_file(filename=get_filename_for_day(day), payload=json.dumps(this_day_meta, indent=2))
+    write_to_file(filename=get_filename_for_day(day, data_dir), payload=json.dumps(this_day_meta, indent=2))
 
     print("Saving original (%s, %s)" % (w, h))
-    shutil.copyfile(image_filename, FRONTEND_DIR + unchanged_filename)
+    shutil.copyfile(image_filename, frontend_dir + unchanged_filename)
 
     print("full: resizing from (%s, %s) to %s" % (w, h, full_size))
     if orientation:
         img = autorotate(img, orientation)
     img.thumbnail(full_size, Image.ANTIALIAS)
-    img.save(FRONTEND_DIR + full_filename, "JPEG", quality=60, optimize=True, progressive=True)
+    img.save(frontend_dir + full_filename, "JPEG", quality=60, optimize=True, progressive=True)
     print("------------------------------------")
     print("thumb: resizing from (%s, %s) to %s" % (w, h, thumb_size))
     thumb = Image.open(image_filename)
     if orientation:
         thumb = autorotate(thumb, orientation)
     thumb.thumbnail(thumb_size, Image.ANTIALIAS)
-    thumb.save((FRONTEND_DIR + thumb_filename), "JPEG")
+    thumb.save((frontend_dir + thumb_filename), "JPEG")
     print("====================================\n")
     input("done!")
 
