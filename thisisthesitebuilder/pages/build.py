@@ -2,9 +2,11 @@ import maya
 import yaml
 from django.template.loader import get_template
 from django.template.exceptions import TemplateDoesNotExist
-import markdown
+
 import hashlib
 import json
+
+from thisisthesitebuilder.pages.parsers import parse_markdown_and_django_template
 
 
 class PageBuilder(object):
@@ -15,16 +17,6 @@ class PageBuilder(object):
 
     def build_page(self, page_name, **kwargs):
         return build_page(page_name, self.data_dir, self.frontend_dir, force_rebuild=True, **kwargs)
-
-
-def parse_markdown_and_django_template(blob, context=None):
-    context = context or {}
-    from django.template import engines
-    django_template_engine = engines['django']
-    parsed_markdown = markdown.markdown(blob, extensions=['markdown.extensions.tables'])
-    templated_content = django_template_engine.from_string(parsed_markdown)
-    rendered_content = templated_content.render(context)
-    return rendered_content
 
 
 def build_page(page_name, data_dir, frontend_dir, template_name=None, root=False, context=None, slicey=False, force_rebuild=False):
