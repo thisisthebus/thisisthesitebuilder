@@ -164,27 +164,46 @@ def parse_video(video_filename, data_dir, frontend_dir):
     new_clip['tags'] = ask_for_tags()
 
     slug = slugify(new_clip['caption'][:30]) if new_clip['caption'] else ""
-    file_detail = "{slug}__{hash}__{start_time}-{duration}".format(slug=slug, hash=video_checksum, start_time=start_time, duration=duration)
+
+
+    # TODO: Share this logic with the model.
+    file_detail = day
+
+    if slug:
+        file_detail += "__" + slug
+
+    file_detail += "__{}__{}-{}".format(video_checksum, start_time, duration)
+
+#    file_detail = "{slug}__{hash}__{start_time}-{duration}".format(slug=slug, hash=video_checksum, start_time=start_time, duration=duration)
 
     extension = video_filename.split('.')[-1]
 
     full_filename = '/apps/multimedia/Clip/full/%s__%s.webm' % (day, file_detail)
     thumb_filename = '/apps/multimedia/Clip/thumbs/%s__%s.webm' % (day, file_detail)
 
+    thumb_duration = duration
+
+    try:
+        if int(duration) > 10:
+            print("Duration was %s; setting to 10 for thumb." % duration)
+            thumb_duration = "10"
+    except TypeError:
+        print("Wasn't able to cast %s to int to test for thumb duration." % duration)
+
 
     thumb_pass_1_args = [
-        "ffmpeg", "-y", "-ss", start_time, "-t", duration, "-i", video_filename, "-maxrate", "80000", "-c:v",
+        "ffmpeg", "-y", "-ss", start_time, "-t", thumb_duration, "-i", video_filename, "-maxrate", "80000", "-c:v",
         "libvpx-vp9", "-pass", "1", "-b:v", "1000K", "-threads", "1", "-speed", "4", "-tile-columns", "0",
         "-frame-parallel", "0", "-auto-alt-ref", "1", "-lag-in-frames", "25", "-g", "9999",
         "-aq-mode", "0", "-f", "webm", "-vf",
-        "scale=256:-1", "/dev/null"]
+        "scale=256:-1", "-an", "/dev/null"]
 
     thumb_pass_2_args = [
-        "ffmpeg", "-y", "-ss", start_time, "-t", duration, "-i", video_filename, "-maxrate", "80000", "-c:v",
+        "ffmpeg", "-y", "-ss", start_time, "-t", thumb_duration, "-i", video_filename, "-maxrate", "80000", "-c:v",
         "libvpx-vp9", "-pass", "2", "-b:v", "1000K", "-threads", "1", "-speed", "0", "-tile-columns", "0",
         "-frame-parallel", "0", "-auto-alt-ref", "1", "-lag-in-frames", "25", "-g", "9999",
         "-aq-mode", "0", "-c:a", "libopus", "-b:a", "64k", "-f", "webm", "-vf",
-        "scale=256:-1", frontend_dir + thumb_filename]
+        "scale=256:-1", "-an", frontend_dir + thumb_filename]
 
     full_pass_1_args = [
         "ffmpeg", "-y", "-ss", start_time, "-t", duration, "-i", video_filename, "-maxrate",
