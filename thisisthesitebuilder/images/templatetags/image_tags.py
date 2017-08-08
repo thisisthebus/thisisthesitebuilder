@@ -1,5 +1,5 @@
 from django import template
-from build.built_fundamentals import lookup_image_by_slug, lookup_image_by_hash
+from build.built_fundamentals import IMAGES
 register = template.Library()
 
 
@@ -14,8 +14,11 @@ def register_image_tags(image_instance_template_location):
         hash = image_details.get('hash')
         width = image_details.get('width')
         if hash:
-            return {'iotd': lookup_image_by_hash(hash), 'thumb_width': width}
+            image = IMAGES.lookup_by_hash(hash)
         elif slug:
-            return {'iotd': lookup_image_by_slug(slug), 'thumb_width': width}
+            image = IMAGES.lookup_by_slug(slug)
         else:
             raise ValueError("Need either slug or hash.")
+        context = {'iotd': image, 'thumb_width': width, 'image_note': image_details.get('note')}
+
+        return context

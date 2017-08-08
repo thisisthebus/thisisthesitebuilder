@@ -1,49 +1,95 @@
 import os
 
-from thisisthebus.settings.constants import DATA_DIR
+
 import json
 from collections import OrderedDict
 from .models import Image
 
-image_data_dir = "%s/compiled/images" % DATA_DIR
+
+class MultimediaCollection(object):
+
+    def __init__(self, data_dir, multimedia_class):
+        self.data_dir = data_dir
+        self.MultimediaClass = multimedia_class
+
+        self._by_date = {}
+        self.by_slug = {}
+        self.by_hash = {}
+
+        self.non_unique_hashes = []
+        self.non_unique_slugs = []
+        self.count = 0
+
+        self.walk_files()
+
+    def __str__(self):
+        return "{type} collection - {count}".format(type=self.MultimediaClass.__name__, count=self.count)
+
+    def walk_files(self):
+        for metadata_file in os.listdir(self.data_dir):
+            day = metadata_file.strip(".json")
+            with open("%s/%s" % (self.data_dir, metadata_file), 'r') as f:
+                try:
+                    metadata_for_this_day = json.loads(f.read())
+                except json.decoder.JSONDecodeError as e:
+                    error_message = "Problem with image metadata {file}: {message}".format(
+                        file=metadata_file, message=e)
+                    raise ValueError(error_message)
+                day_images = []
+                for metadata in metadata_for_this_day:
+                    try:
+                        media_object = self.MultimediaClass(date=day, **metadata)
+                    except TypeError:
+                        raise TypeError("Can't make a {media_type} from {metadata}".format(media_type=self.MultimediaClass, metadata=metadata))
+                    self.count += 1
+
+                    day_images.append(media_object)
+                    file_hash = metadata['hash']
+                    slug = metadata['slug']
+
+                    if not file_hash in self.by_hash:
+                        self.by_hash[file_hash] = media_object
+                    else:
+                        self.non_unique_hashes.append(file_hash)
+
+                    if not slug in self.by_slug:
+                        self.by_slug[slug] = media_object
+                    else:
+                        self.non_unique_slugs.append(slug)
+
+                    self._by_date[day] = sorted(day_images, key=lambda i: i.time)
+
+    def by_date(self):
+        return OrderedDict(sorted(self._by_date.items(), key=lambda iotd: iotd[0]))
+
+    def lookup_by_hash(self, hash):
+        if not hash in self.non_unique_hashes:
+            return self.by_hash[hash]
+        else:
+            raise ValueError("The hash %s is not unique." % hash)
+
+    def lookup_by_slug(self, slug):
+        if not slug in self.non_unique_slugs:
+            return self.by_slug[slug]
+        else:
+            raise ValueError("The slug %s is not unique." % slug)
 
 
-def process_images():
-    print("Processing Images.")
+def intertwine(*media_collections):
+    intertwined = {}
+    dates = set()
 
-    images_by_date = {}
-    images_by_slug = {}
-    images_by_hash = {}
+    for media_collection in media_collections:
+        dates.update(media_collection.by_date().keys())
 
-    non_unique_hashes = []
-    non_unique_slugs = []
-    image_count = 0
-    for image_metadata_file in os.listdir(image_data_dir):
-        day = image_metadata_file.strip(".json")
-        with open("%s/compiled/images/%s" % (DATA_DIR, image_metadata_file), 'r') as f:
-            images_metadata_for_this_day = json.loads(f.read())
-            day_images = []
-            for image_metadata in images_metadata_for_this_day:
-                image = Image(date=day, **image_metadata)
-                image_count += 1
+    for day in dates:
+        day_collection = []
+        for media_collection in media_collections:
+            if media_collection.by_date().get(day):
+                day_collection.extend(media_collection.by_date()[day])
 
-                day_images.append(image)
-                image_hash = image_metadata['hash']
-                image_slug = image_metadata['slug']
+        day_collection.sort(key=lambda media_object: media_object.time)
 
-                if not image_hash in images_by_hash:
-                    images_by_hash[image_hash] = image
-                else:
-                    non_unique_hashes.append(image_hash)
+        intertwined[day] = day_collection
 
-                if not image_slug in images_by_slug:
-                    images_by_slug[image_slug] = image
-                else:
-                    non_unique_slugs.append(image_slug)
-
-                images_by_date[day] = sorted(day_images, key=lambda i: i.time)
-    print("Processed {count} images, with {slug_count} unique slugs.".format(count=image_count, slug_count=len(images_by_slug)))
-    if non_unique_hashes:
-        print("WARNING: non-unique hashes: ", non_unique_slugs)
-
-    return OrderedDict(sorted(images_by_date.items(), key=lambda iotd: iotd[0])), images_by_hash, images_by_slug, non_unique_hashes, non_unique_slugs
+    return OrderedDict(sorted(intertwined.items(), key=lambda collection: collection[0]))
