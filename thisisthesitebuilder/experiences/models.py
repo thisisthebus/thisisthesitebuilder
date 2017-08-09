@@ -1,6 +1,7 @@
 import maya
 from django.db import models
 from thisisthebus.settings.constants import TIMEZONE_UTC_OFFSET
+from thisisthesitebuilder.images.models import Image, Clip
 from build.built_fundamentals import SUMMARIES, LOCATIONS, IMAGES, PLACES, INTERTWINED_MEDIA
 
 
@@ -69,12 +70,35 @@ class Era(models.Model):
         pass
 
 
+class Eras(list):
+    """
+    A collection of groups of Eras (probably Experiences) to be displayed or otherwise considered together.
+
+    The canonical use-case is for pagination.
+    """
+    def __init__(self, page_name="", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.page_name = page_name
+        self.next_group()
+
+    def next_group(self):
+        self.current_group = []
+        self.append(self.current_group)
+
+    def add_to_group(self, era):
+        """
+        Add era to the current group.
+        """
+        self.current_group.append(era)
+
+    def output_filename_for_group(self, group):
+        group
+
 
 
 class Experience(Era):
 
     display = models.CharField(max_length=30)
-
     show_locations = models.BooleanField(default=True)
     show_dates = models.BooleanField(default=True)
 
@@ -115,3 +139,19 @@ class Experience(Era):
                         if location['start'] < summary_maya < location['end']:
                             location['summaries'].append(summary)
                             self.all_summaries_with_location.append(SUMMARIES)
+
+    def media_count(self):
+        image_count = 0
+        clip_count = 0
+        for e in self.sub_experiences:
+            sub_image_count, sub_clip_count = e.media_count()
+            image_count += sub_image_count
+            clip_count += sub_clip_count
+
+        for i in self.images:
+            if i.__class__ == Image:
+                image_count += 1
+            if i.__class__ == Clip:
+                clip_count += 1
+
+        return image_count, clip_count
