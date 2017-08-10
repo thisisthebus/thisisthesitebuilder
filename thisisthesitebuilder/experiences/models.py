@@ -92,9 +92,27 @@ class Eras(list):
         self.current_group.append(era)
 
     def output_filename_for_group(self, group):
-        group
+        place = self.index(group)
+        if place == 0:
+            return self.page_name
+        else:
+            return "{page_name}-page-{place}".format(page_name=self.page_name, place=place + 1)
 
+    def output_filename_and_previous_group(self, group):
+        place = self.index(group)
+        if place == 0:
+            return None, None
+        else:
+            previous_group = self[place - 1]
+            return previous_group, self.output_filename_for_group(previous_group)
 
+    def output_filename_and_next_group(self, group):
+        place = self.index(group)
+        try:
+            next_group = self[place + 1]
+            return next_group, self.output_filename_for_group(next_group)
+        except IndexError:
+            return None, None
 
 class Experience(Era):
 
