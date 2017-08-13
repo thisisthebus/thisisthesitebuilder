@@ -56,7 +56,7 @@ class EraBuilder(object):
         experience.end_maya = maya.MayaDT.from_datetime(experience.end)
         return experience
 
-    def build_eras(self, eras_dir):
+    def build_eras(self, eras_dir, experiences=()):
         eras_dir_listing = list(os.walk(eras_dir))
         era_files = eras_dir_listing[0][2]
 
@@ -65,19 +65,20 @@ class EraBuilder(object):
         for era_file in era_files:
             era = self.era_from_yaml(eras_dir + "/" + era_file)
             era.absorb_happenings()
+            era.find_intersecting(experiences)
             eras.append(era)
 
         return sorted(eras, key=lambda e: e.start_maya, reverse=True)
 
 
     def build_experiences(self, experiences_dir):
+
         experience_dir_listing = list(os.walk(experiences_dir))
         experience_dirs = experience_dir_listing[0][1]
         experience_files = experience_dir_listing[0][2]
 
         top_level_experiences = []
         sub_experiences = []
-        experiences_tree = [None, sub_experiences]
 
         for experience_dir in experience_dirs:
             top_level_experience = self.build_experiences(experiences_dir + "/" + experience_dir)[0]
@@ -98,7 +99,6 @@ class EraBuilder(object):
                 sub.absorb_happenings()
                 top_level_experiences.append(sub)
 
-
         sub_experiences.sort(key=lambda e: e.start_maya)
 
         if has_subs:
@@ -108,5 +108,5 @@ class EraBuilder(object):
             top_level_experience.absorb_happenings()
         for sub in sub_experiences:
             sub.apply_locations()
-
+        print("Built from {}".format(experiences_dir))
         return sorted(top_level_experiences, key=lambda e: e.start_maya, reverse=True)

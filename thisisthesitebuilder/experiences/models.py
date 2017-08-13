@@ -37,31 +37,93 @@ class Era(models.Model):
         # self.sort_data_by_location()
 
     def apply_locations(self):
-        self.locations = {}
+        self.locations = []
         for filename, locations_for_day in LOCATIONS.items():
             day = filename.rstrip('.yaml')
-            for time, place in locations_for_day.items():
+            for time, location in locations_for_day.items():
                 try:
                     location_maya = maya.parse(day + "T" + time)
                 except TypeError:
                     raise("Had trouble parsing date or time in %s" % filename)
                 if self.start_maya <= location_maya <= self.end_maya:
                     # The dates match - now let's make sure that, if this is a top-level experience, that this place can be listed on it.
-                    can_be_listed = not self.sub_experiences or PLACES[place].get("show_on_top_level_experience")
+                    can_be_listed = not self.sub_experiences or location.place.show_on_top_level_experience
                     if can_be_listed:
-                        # This location qualifies!  We'll make this a 2-tuple with the place as the first item and any dates as the second.
-                        if not place in self.locations.keys():
-                            self.locations[place] = {'place_meta': PLACES[place],
-                                                              'datetimes': [], 'images': [], "summaries": []}
-                        self.locations[place]['datetimes'].append(location_maya)
+                        self.add_location(location)
+
+
 
         # Now that we have the locations for this self, loop through them again to get start and end mayas.
-        for location in self.locations.values():
-            location['start'] = min(location['datetimes'])
-            location['end'] = max(location['datetimes'])
+        # for location in self.locations.values():
+        #     location['start'] = min(location['datetimes'])
+        #     location['end'] = max(location['datetimes'])
 
         # OK, but now we want locations to be a sorted list.
-        self.locations = sorted(self.locations.values(), key=lambda l: l['start'])
+        self.locations = sorted(self.locations, key=lambda l: l.__str__())
+
+    def add_location(self, location):
+        self.locations.append(location)
+
+    def find_intersecting(self, experiences):
+        """
+        Takes a list of experiences.
+        Sets the attribute, intersecting, which is a list of experiences which start or end within this one.
+        """
+        self.intersection = []
+        for experience in experiences:
+            begins_within = self.start_maya < experience.start_maya < self.end_maya
+            ends_within = self.start_maya < experience.end_maya < self.end_maya
+
+            if begins_within or ends_within:
+                self.intersection.append(experience)
+
+    def places(self, reverse_order=False):
+        locations = sorted(list(set(self.locations)), key=lambda l: l.__str__(), reverse=reverse_order)
+        places = []
+        for location in locations:
+            if location.place not in places:
+                places.append(location.place)
+        return places
+
+    def unique_locations_by_field(self, field, reverse_order=False):
+
+        seen_values = []
+        unique_values_and_locations = {}
+        familiar_values_and_locations = {}
+
+        for location in self.locations:
+            place = location.place
+            value = place.__dict__[field]
+
+            if value in seen_values:
+                places_with_this_value = familiar_values_and_locations.setdefault(value, [])
+                seen_location = unique_values_and_locations.pop(value, None)
+
+                if seen_location:
+                    places_with_this_value.append(seen_location)
+
+                places_with_this_value.append(location)
+            else:
+                unique_values_and_locations[value] = location
+            seen_values.append(value)
+
+        unique_place_locations = list(unique_values_and_locations.values())
+
+        for value, location_list in familiar_values_and_locations.items():
+            most_significant_location = max(location_list, key=lambda l: l.significance())
+            unique_place_locations.append(most_significant_location)
+
+        unique_place_locations = sorted(list(set(unique_place_locations)), key=lambda l: l.__str__(),
+                           reverse=reverse_order)
+        return unique_place_locations
+
+    def unique_places_by_field(self, field):
+        unique_place_locations = self.unique_locations_by_field(field)
+        return [l.place for l in unique_place_locations]
+
+    def unique_locations_by_big_name(self):
+        unique_locations = self.unique_locations_by_field("big_name")
+        return unique_locations
 
     def apply_images(self):
         pass
@@ -114,6 +176,7 @@ class Eras(list):
         except IndexError:
             return None, None
 
+
 class Experience(Era):
 
     display = models.CharField(max_length=30)
@@ -122,10 +185,11 @@ class Experience(Era):
 
     def apply_images(self):
 
-        for day, image_list in INTERTWINED_MEDIA.items():
+        for day, image_list in INTERTWINED_MEDIA.by_date().items():
             for image in image_list:
                 image_maya = maya.parse(day + "T" + image.time + TIMEZONE_UTC_OFFSET)
                 if self.start_maya < image_maya < self.end_maya:
+                    image.is_used = True
                     applied_to_sub = False
                     for sub_experience in self.sub_experiences:
                         for tag in sub_experience.tags:
@@ -173,3 +237,8 @@ class Experience(Era):
                 clip_count += 1
 
         return image_count, clip_count
+
+    def add_location(self, location):
+        super().add_location(location)
+        if self not in location.used_in_experiences:
+            location.used_in_experiences.append(self)

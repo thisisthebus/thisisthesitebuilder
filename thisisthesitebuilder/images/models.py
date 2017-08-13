@@ -6,14 +6,18 @@ class Multimedia(object):
     def __init__(self, caption, hash, slug, time, date, ext, tags=None, *args, **kwargs):
         self.tags = tags or []
         self.caption = caption
-        self.hash = hash
-        self.slug = slug
+        self._hash = hash
+        self._slug = slug
         self.time = time
         self.date = date
         self.extension = ext
+        self.is_used = False
 
     def __str__(self):
-        return self.slug
+        return "{} {} ({})".format(self.date, self.distinguisher(), self.slug())
+
+    def date_and_time(self):
+        return self.date + "T" + self.time
 
     @classmethod
     def set_storage_url_path(cls, storage_path):
@@ -26,16 +30,19 @@ class Multimedia(object):
     def url_path(self):
         return self._storage_url_path + "/" + self.__class__.__name__
 
+    def slug(self):
+        return self._slug
+
     def filename(self, orig=False):
         if orig:
             full_filename = self.orig
         else:
             full_filename = self.date
 
-        if self.slug:
-            full_filename += "__" + self.slug
+        if self.slug():
+            full_filename += "__" + self.slug()
 
-        full_filename += "__{}.{}".format(self.hash, self.extension)
+        full_filename += "__{}.{}".format(self._hash, self.extension)
         return full_filename
 
     def full_url(self):
@@ -55,6 +62,9 @@ class Multimedia(object):
         except AttributeError:
             raise TypeError("{} does not have an image_file_path".format(self.slug))
         return full_path
+
+    def distinguisher(self):
+        raise RuntimeError("distinguisher hasn't been set on this class.")
 
 
 class Image(Multimedia):
@@ -86,6 +96,9 @@ class Image(Multimedia):
             image_checksum = hashlib.md5(image_bytes).hexdigest()[:8]
         return image_checksum
 
+    def distinguisher(self):
+        return self._hash
+
 
 class Clip(Multimedia):
 
@@ -98,8 +111,12 @@ class Clip(Multimedia):
     def filename(self, orig=False):
         full_filename = self.date
 
-        if self.slug:
-            full_filename += "__" + self.slug
+        if self.slug():
+            full_filename += "__" + self.slug()
 
-        full_filename += "__{}__{}-{}.{}".format(self.hash, self.start, self.duration, self.extension)
+        full_filename += "__{}__{}-{}.{}".format(self._hash, self.start, self.duration, self.extension)
+
         return full_filename
+
+    def distinguisher(self):
+        return "{}__{}-{}".format(self._hash, self.start, self.duration)

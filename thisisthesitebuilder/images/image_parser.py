@@ -178,8 +178,8 @@ def parse_video(video_filename, data_dir, frontend_dir):
 
     extension = video_filename.split('.')[-1]
 
-    full_filename = '/apps/multimedia/Clip/full/%s__%s.webm' % (day, file_detail)
-    thumb_filename = '/apps/multimedia/Clip/thumbs/%s__%s.webm' % (day, file_detail)
+    full_filename = '/apps/multimedia/Clip/full/%s.webm' % (file_detail)
+    thumb_filename = '/apps/multimedia/Clip/thumbs/%s.webm' % (file_detail)
 
     thumb_duration = duration
 
@@ -207,7 +207,7 @@ def parse_video(video_filename, data_dir, frontend_dir):
 
     full_pass_1_args = [
         "ffmpeg", "-y", "-ss", start_time, "-t", duration, "-i", video_filename, "-maxrate",
-        "285000", "-c:v",
+        "335000", "-c:v",
         "libvpx-vp9", "-pass", "1", "-b:v", "1000K", "-threads", "1", "-speed", "4",
         "-tile-columns", "0",
         "-frame-parallel", "0", "-auto-alt-ref", "1", "-lag-in-frames", "25", "-g", "9999",
@@ -215,7 +215,7 @@ def parse_video(video_filename, data_dir, frontend_dir):
         "/dev/null"]
 
     full_pass_2_args = ["ffmpeg", "-y", "-ss", start_time, "-t", duration, "-i", video_filename, "-maxrate",
-        "285000", "-c:v",
+        "335000", "-c:v",
         "libvpx-vp9", "-pass", "2", "-b:v", "1000K", "-threads", "1", "-speed", "0",
         "-tile-columns", "0",
         "-frame-parallel", "0", "-auto-alt-ref", "1", "-lag-in-frames", "25", "-g", "9999",
