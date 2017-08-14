@@ -17,7 +17,7 @@ class Place(object):
 
     def __init__(self, yaml_checksum, lat, lon, small_name, big_name, thumb_style, thumb_zoom,
                  use_both_names_for_slug, link_zoom, bearing=0, pitch=0,
-                 show_on_top_level_experience=True, small_link=None, significance=0):
+                 show_on_top_level_experience=False, small_link=None, significance=0):
         self.yaml_checksum = yaml_checksum
         self.lat = lat
         self.lon = lon

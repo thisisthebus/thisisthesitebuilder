@@ -51,31 +51,31 @@ class Era(models.Model):
                     if can_be_listed:
                         self.add_location(location)
 
-
-
-        # Now that we have the locations for this self, loop through them again to get start and end mayas.
-        # for location in self.locations.values():
-        #     location['start'] = min(location['datetimes'])
-        #     location['end'] = max(location['datetimes'])
-
-        # OK, but now we want locations to be a sorted list.
         self.locations = sorted(self.locations, key=lambda l: l.__str__())
 
     def add_location(self, location):
         self.locations.append(location)
+
+    def intersection(self):
+        try:
+            intersecting = self._intersection
+        except AttributeError:
+            raise TypeError("You need to find_intersecting experiences first.")
+
+        return sorted(intersecting, key=lambda e: e.start_maya)
 
     def find_intersecting(self, experiences):
         """
         Takes a list of experiences.
         Sets the attribute, intersecting, which is a list of experiences which start or end within this one.
         """
-        self.intersection = []
+        self._intersection = []
         for experience in experiences:
             begins_within = self.start_maya < experience.start_maya < self.end_maya
             ends_within = self.start_maya < experience.end_maya < self.end_maya
 
             if begins_within or ends_within:
-                self.intersection.append(experience)
+                self._intersection.append(experience)
 
     def places(self, reverse_order=False):
         locations = sorted(list(set(self.locations)), key=lambda l: l.__str__(), reverse=reverse_order)
@@ -84,6 +84,15 @@ class Era(models.Model):
             if location.place not in places:
                 places.append(location.place)
         return places
+
+    def unique_locations_by_place(self):
+        seen_places = []
+        unique_locations = []
+        for location in self.locations:
+            if not location.place in seen_places:
+                unique_locations.append(location)
+            seen_places.append(location.place)
+        return unique_locations
 
     def unique_locations_by_field(self, field, reverse_order=False):
 
