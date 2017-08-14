@@ -300,7 +300,8 @@ def parse_image(image_filename, data_dir, frontend_dir):
         image_checksum = hashlib.md5(image_bytes).hexdigest()[:8]
 
     slug = slugify(new_iotd['caption'][:30]) if new_iotd['caption'] else ""
-    file_detail = "{slug}__{hash}".format(slug=slug, hash=image_checksum)
+    file_detail = "{}__".format(slug) if slug else ""
+    file_detail += image_checksum
 
     extension = image_filename.split('.')[-1]
 
