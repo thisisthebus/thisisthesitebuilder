@@ -34,6 +34,10 @@ class Place(object):
         self.small_link = small_link
         self.significance = 0
 
+        self.map_uri = "https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map={link_zoom}/{lat}/{lon}".format(
+            **self.__dict__
+        )
+
         self.is_used_in_location = False
 
     def __str__(self):
@@ -102,10 +106,6 @@ class Place(object):
             **self.__dict__
         )
 
-        self.map_uri = "https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map={link_zoom}/{lat}/{lon}".format(
-            **self.__dict__
-        )
-
         response = requests.get(thumb_uri)
 
         if not response.status_code == 200:
@@ -131,6 +131,7 @@ class Location(object):
     def __init__(self, day, time, place, significance=None):
         self.day = day
         self.time = time
+
         self.place = place
 
         self._significance = significance
@@ -145,7 +146,7 @@ class Location(object):
         if self._significance is None:
             return self.place.significance
         else:
-            return self._significacne
+            return self._significance
 
     def most_significant_experience(self):
         if len(self.used_in_experiences) != 1:

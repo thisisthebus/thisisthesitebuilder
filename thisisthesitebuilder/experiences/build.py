@@ -27,8 +27,7 @@ class EraBuilder(object):
         era_dict = self.era_meta_from_yaml(yaml_filename)
         slug = yaml_filename.rstrip('.yaml').split('/')[-1]
         era = Era(slug=slug, **era_dict)
-        era.start_maya = maya.MayaDT.from_datetime(era.start)
-        era.end_maya = maya.MayaDT.from_datetime(era.end)
+
         return era
 
     def experience_from_yaml(self, yaml_filename):

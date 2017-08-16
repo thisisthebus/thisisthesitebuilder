@@ -18,7 +18,14 @@ class Era(models.Model):
         self.tags = tags or []
         self.sub_experiences = []
         self.images = []
+
+        self.specific_locations = []
+        self.all_locations = []
+
         super(Era, self).__init__(*args, **kwargs)
+
+        self.start_maya = maya.MayaDT.from_datetime(self.start)
+        self.end_maya = maya.MayaDT.from_datetime(self.end)
 
     def __str__(self):
         return self.name
@@ -37,7 +44,6 @@ class Era(models.Model):
         # self.sort_data_by_location()
 
     def apply_locations(self):
-        self.locations = []
         for filename, locations_for_day in LOCATIONS.items():
             day = filename.rstrip('.yaml')
             for time, location in locations_for_day.items():
@@ -46,15 +52,16 @@ class Era(models.Model):
                 except TypeError:
                     raise("Had trouble parsing date or time in %s" % filename)
                 if self.start_maya <= location_maya <= self.end_maya:
+                    self.all_locations.append(location)
                     # The dates match - now let's make sure that, if this is a top-level experience, that this place can be listed on it.
                     can_be_listed = not self.sub_experiences or location.place.show_on_top_level_experience
                     if can_be_listed:
                         self.add_location(location)
 
-        self.locations = sorted(self.locations, key=lambda l: l.__str__())
+        self.specific_locations.sort(key=lambda l: l.__str__())
 
     def add_location(self, location):
-        self.locations.append(location)
+        self.specific_locations.append(location)
 
     def intersection(self):
         try:
@@ -78,7 +85,7 @@ class Era(models.Model):
                 self._intersection.append(experience)
 
     def places(self, reverse_order=False):
-        locations = sorted(list(set(self.locations)), key=lambda l: l.__str__(), reverse=reverse_order)
+        locations = sorted(list(set(self.all_locations)), key=lambda l: l.__str__(), reverse=reverse_order)
         places = []
         for location in locations:
             if location.place not in places:
@@ -86,21 +93,27 @@ class Era(models.Model):
         return places
 
     def unique_locations_by_place(self):
+        """
+        Does *not* include sub-experiences.
+        """
         seen_places = []
         unique_locations = []
-        for location in self.locations:
+        for location in self.specific_locations:
             if not location.place in seen_places:
                 unique_locations.append(location)
             seen_places.append(location.place)
         return unique_locations
 
     def unique_locations_by_field(self, field, reverse_order=False):
+        """
+        *Includes* sub-experiences.
+        """
 
         seen_values = []
         unique_values_and_locations = {}
         familiar_values_and_locations = {}
 
-        for location in self.locations:
+        for location in self.all_locations:
             place = location.place
             value = place.__dict__[field]
 
@@ -133,6 +146,27 @@ class Era(models.Model):
     def unique_locations_by_big_name(self):
         unique_locations = self.unique_locations_by_field("big_name")
         return unique_locations
+
+    def locations_from_intersecting_experiences(self):
+        intersecting = self.intersection()
+        experiences_and_places = []
+        position = 1
+        for experience in intersecting:
+            experience_places = []
+            experiences_and_places.append((experience, experience_places))
+            locations = experience.unique_locations_by_big_name()
+
+            for counter, location in enumerate(locations):
+                must_clear = position - counter > 2 and len(locations) < 4
+                if must_clear:
+                    position = 1
+                experience_places.append((location, position, must_clear))
+                if position == 3:
+                    position = 1
+                else:
+                    position += 1
+
+        return experiences_and_places
 
     def apply_images(self):
         pass
@@ -208,12 +242,13 @@ class Experience(Era):
                     if not applied_to_sub:
                         self.images.append(image)
 
-                    if self.display == "by-location":
-                        # Loop through locations again, this time determining if this image goes with this location.
-                        for location in self.locations:
-                            if location['start'] < image_maya < location['end']:
-                                location['images'].append(image)
-                                self.all_images_with_location.append(image)
+                    # Basically stale at this point.
+                    # if self.display == "by-location":
+                    #     # Loop through locations again, this time determining if this image goes with this location.
+                    #     for location in self.locations:
+                    #         if location['start'] < image_maya < location['end']:
+                    #             location['images'].append(image)
+                    #             self.all_images_with_location.append(image)
 
     def apply_summaries(self):
         # summaries
@@ -224,12 +259,12 @@ class Experience(Era):
                 self.summaries[day] = summary
 
                 # If we're doing by-location, list the summaries that way.
-                if self.display == "by-location":
-                    # Loop through locations again, this time determining if this image goes with this location.
-                    for location in self.locations:
-                        if location['start'] < summary_maya < location['end']:
-                            location['summaries'].append(summary)
-                            self.all_summaries_with_location.append(SUMMARIES)
+                # if self.display == "by-location":
+                #     # Loop through locations again, this time determining if this image goes with this location.
+                #     for location in self.locations:
+                #         if location['start'] < summary_maya < location['end']:
+                #             location['summaries'].append(summary)
+                #             self.all_summaries_with_location.append(SUMMARIES)
 
     def media_count(self):
         image_count = 0

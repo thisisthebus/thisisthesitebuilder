@@ -18,11 +18,19 @@ def process_locations(places):
     for location_file in location_files:
         location_filename = "%s/%s" % (locations_dir, location_file)
         day = location_file.rstrip(".yaml")
+        locations[day] = {}
         with open(location_filename, 'r') as f:
             location_bytes = f.read()
             location_yaml = yaml.load(location_bytes)
-            locations[day] = {time: Location(day, time, places[place_name]) for time, place_name in location_yaml.items()}
-            pass
+            for time, location_meta in location_yaml.items():
+                try:
+                    location = Location(day, time, places[location_meta])
+                except TypeError:
+                    place = places[location_meta[0]]
+                    significance = location_meta[1]
+                    location = Location(day, time, place, significance)
+
+                locations[day][time] = location
 
     for place in places.values():
         if not place.is_used_in_location:
