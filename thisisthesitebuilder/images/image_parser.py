@@ -23,11 +23,11 @@ def autorotate(image_file, orientation):
 
 
 def get_image_data_filename_for_day(day, data_dir):
-    return "%s/compiled/images/%s.json" % (data_dir, day)
+    return "%s/authored/images/%s.json" % (data_dir, day)
 
 
 def get_clip_data_filename_for_day(day, data_dir):
-    return "%s/compiled/clips/%s.json" % (data_dir, day)
+    return "%s/authored/clips/%s.json" % (data_dir, day)
 
 
 def which_day(exif_date):

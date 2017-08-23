@@ -1,4 +1,5 @@
 import os
+from collections import OrderedDict
 
 import yaml
 from thisisthebus.settings.constants import DATA_DIR
@@ -18,7 +19,7 @@ def process_locations(places):
     for location_file in location_files:
         location_filename = "%s/%s" % (locations_dir, location_file)
         day = location_file.rstrip(".yaml")
-        locations[day] = {}
+        locations_for_day = {}
         with open(location_filename, 'r') as f:
             location_bytes = f.read()
             location_yaml = yaml.load(location_bytes)
@@ -30,7 +31,8 @@ def process_locations(places):
                     significance = location_meta[1]
                     location = Location(day, time, place, significance)
 
-                locations[day][time] = location
+                locations_for_day[time] = location
+        locations[day] = OrderedDict(sorted(locations_for_day.items(), key=lambda l: str(l)))
 
     for place in places.values():
         if not place.is_used_in_location:

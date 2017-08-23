@@ -15,9 +15,10 @@ class Era(models.Model):
     description = models.TextField()
     summary = models.TextField()
 
-    def __init__(self, build_meta, tags=None, sections=None, *args, **kwargs):
+    def __init__(self, build_meta, tags=None, sections=None, persist=True, *args, **kwargs):
         self.build_meta = build_meta
         self.sections = sections or []
+        self.persist = persist
         self.tags = tags or []
         self.sub_experiences = []
 
@@ -51,39 +52,40 @@ class Era(models.Model):
         self.subs_checksum = hashlib.md5(str([s.__str__() for s in self.sub_experiences]).encode()).hexdigest()
         self._has_absorbed_happenings = True
 
-        try:
-            json_meta_filename = "%s/compiled/experiences/%s.json" % (self.build_meta['data_dir'], self.slug)
-            with open(json_meta_filename, "r") as f:
-                experience_meta_json = json.loads(f.read())
+        if self.persist:
+            try:
+                json_meta_filename = "%s/compiled/experiences/%s.json" % (self.build_meta['data_dir'], self.slug)
+                with open(json_meta_filename, "r") as f:
+                    experience_meta_json = json.loads(f.read())
 
-            locations_changed = self.locations_checksum != experience_meta_json['locations']
-            multimedia_changed = self.multimedia_checksum != experience_meta_json['multimedia']
-            summaries_changed = self.summaries_checksum != experience_meta_json['summaries']
-            subs_changed = self.subs_checksum != experience_meta_json['subs']
+                locations_changed = self.locations_checksum != experience_meta_json['locations']
+                multimedia_changed = self.multimedia_checksum != experience_meta_json['multimedia']
+                summaries_changed = self.summaries_checksum != experience_meta_json['summaries']
+                subs_changed = self.subs_checksum != experience_meta_json['subs']
 
-        except FileNotFoundError:
-            # There is no JSON meta for this page yet.
-            locations_changed = True
-            multimedia_changed = True
-            summaries_changed = True
-            subs_changed = True
+            except FileNotFoundError:
+                # There is no JSON meta for this page yet.
+                locations_changed = True
+                multimedia_changed = True
+                summaries_changed = True
+                subs_changed = True
 
-        if locations_changed or multimedia_changed or summaries_changed or subs_changed:
-            self.has_changed = True
-            self.results_meta = {
-                "locations": self.locations_checksum,
-                "multimedia": self.multimedia_checksum,
-                "summaries": self.summaries_checksum,
-                "subs": self.subs_checksum,
-                "datetime": self.build_meta['datetime'].iso8601(),
-                "build": self.build_meta['data_checksum'],
-            }
-            with open(json_meta_filename, "w") as f:
-                f.seek(0)
-                f.write(json.dumps(self.results_meta, indent=2))
-        else:
-            self.has_changed = False
-            self.results_meta = experience_meta_json
+            if locations_changed or multimedia_changed or summaries_changed or subs_changed:
+                self.has_changed = True
+                self.results_meta = {
+                    "locations": self.locations_checksum,
+                    "multimedia": self.multimedia_checksum,
+                    "summaries": self.summaries_checksum,
+                    "subs": self.subs_checksum,
+                    "datetime": self.build_meta['datetime'].iso8601(),
+                    "build": self.build_meta['data_checksum'],
+                }
+                with open(json_meta_filename, "w") as f:
+                    f.seek(0)
+                    f.write(json.dumps(self.results_meta, indent=2, sort_keys=True))
+            else:
+                self.has_changed = False
+                self.results_meta = experience_meta_json
 
     def apply_locations(self):
         for filename, locations_for_day in LOCATIONS.items():
@@ -100,9 +102,11 @@ class Era(models.Model):
                     if can_be_listed:
                         self.add_location(location)
 
-        self.specific_locations.sort(key=lambda l: l.__str__())
+        self.specific_locations.sort(key=lambda l: str(l))
+        self.all_locations.sort(key=lambda l: str(l))
 
-        return hashlib.md5(str([l.__str__() for l in self.all_locations]).encode()).hexdigest()
+        distinguisher = str([str(l) for l in self.all_locations]).encode()
+        return hashlib.md5(distinguisher).hexdigest()
 
     def add_location(self, location):
         self.specific_locations.append(location)
