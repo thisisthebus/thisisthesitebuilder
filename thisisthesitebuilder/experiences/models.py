@@ -1,8 +1,10 @@
+import json
 import maya
 from django.db import models
 from thisisthebus.settings.constants import TIMEZONE_UTC_OFFSET
 from thisisthesitebuilder.images.models import Image, Clip
 from build.built_fundamentals import SUMMARIES, LOCATIONS, IMAGES, PLACES, INTERTWINED_MEDIA
+import hashlib
 
 
 class Era(models.Model):
@@ -13,14 +15,22 @@ class Era(models.Model):
     description = models.TextField()
     summary = models.TextField()
 
-    def __init__(self, tags=None, sections=None, *args, **kwargs):
+    def __init__(self, build_meta, tags=None, sections=None, *args, **kwargs):
+        self.build_meta = build_meta
         self.sections = sections or []
         self.tags = tags or []
         self.sub_experiences = []
+
         self.images = []
+        self._all_images_including_subs = []
+
+        self.all_images_with_location = []
+        self.all_summaries_with_location = []
 
         self.specific_locations = []
         self.all_locations = []
+
+        self._has_absorbed_happenings = False
 
         super(Era, self).__init__(*args, **kwargs)
 
@@ -35,13 +45,45 @@ class Era(models.Model):
         Figure out everything that happened during this experience and populate it with the appropriate metadata.
         """
 
-        self.all_images_with_location = []
-        self.all_summaries_with_location = []
+        self.locations_checksum = self.apply_locations()
+        self.multimedia_checksum = self.apply_images()
+        self.summaries_checksum = self.apply_summaries()
+        self.subs_checksum = hashlib.md5(str([s.__str__() for s in self.sub_experiences]).encode()).hexdigest()
+        self._has_absorbed_happenings = True
 
-        self.apply_locations()
-        self.apply_images()
-        self.apply_summaries()
-        # self.sort_data_by_location()
+        try:
+            json_meta_filename = "%s/compiled/experiences/%s.json" % (self.build_meta['data_dir'], self.slug)
+            with open(json_meta_filename, "r") as f:
+                experience_meta_json = json.loads(f.read())
+
+            locations_changed = self.locations_checksum != experience_meta_json['locations']
+            multimedia_changed = self.multimedia_checksum != experience_meta_json['multimedia']
+            summaries_changed = self.summaries_checksum != experience_meta_json['summaries']
+            subs_changed = self.subs_checksum != experience_meta_json['subs']
+
+        except FileNotFoundError:
+            # There is no JSON meta for this page yet.
+            locations_changed = True
+            multimedia_changed = True
+            summaries_changed = True
+            subs_changed = True
+
+        if locations_changed or multimedia_changed or summaries_changed or subs_changed:
+            self.has_changed = True
+            self.results_meta = {
+                "locations": self.locations_checksum,
+                "multimedia": self.multimedia_checksum,
+                "summaries": self.summaries_checksum,
+                "subs": self.subs_checksum,
+                "datetime": self.build_meta['datetime'].iso8601(),
+                "build": self.build_meta['data_checksum'],
+            }
+            with open(json_meta_filename, "w") as f:
+                f.seek(0)
+                f.write(json.dumps(self.results_meta, indent=2))
+        else:
+            self.has_changed = False
+            self.results_meta = experience_meta_json
 
     def apply_locations(self):
         for filename, locations_for_day in LOCATIONS.items():
@@ -59,6 +101,8 @@ class Era(models.Model):
                         self.add_location(location)
 
         self.specific_locations.sort(key=lambda l: l.__str__())
+
+        return hashlib.md5(str([l.__str__() for l in self.all_locations]).encode()).hexdigest()
 
     def add_location(self, location):
         self.specific_locations.append(location)
@@ -157,7 +201,7 @@ class Era(models.Model):
             locations = experience.unique_locations_by_big_name()
 
             for counter, location in enumerate(locations):
-                must_clear = position - counter > 2 and len(locations) < 4
+                must_clear = position - counter > 2 and 1 < len(locations) < 4
                 if must_clear:
                     position = 1
                 experience_places.append((location, position, must_clear))
@@ -232,6 +276,7 @@ class Experience(Era):
             for image in image_list:
                 image_maya = maya.parse(day + "T" + image.time + TIMEZONE_UTC_OFFSET)
                 if self.start_maya < image_maya < self.end_maya:
+                    self._all_images_including_subs.append(image)
                     image.is_used = True
                     applied_to_sub = False
                     for sub_experience in self.sub_experiences:
@@ -242,13 +287,7 @@ class Experience(Era):
                     if not applied_to_sub:
                         self.images.append(image)
 
-                    # Basically stale at this point.
-                    # if self.display == "by-location":
-                    #     # Loop through locations again, this time determining if this image goes with this location.
-                    #     for location in self.locations:
-                    #         if location['start'] < image_maya < location['end']:
-                    #             location['images'].append(image)
-                    #             self.all_images_with_location.append(image)
+        return hashlib.md5(str([i.distinguisher() for i in self._all_images_including_subs]).encode()).hexdigest()
 
     def apply_summaries(self):
         # summaries
@@ -258,13 +297,7 @@ class Experience(Era):
             if self.start_maya < summary_maya and summary_maya < self.end_maya:
                 self.summaries[day] = summary
 
-                # If we're doing by-location, list the summaries that way.
-                # if self.display == "by-location":
-                #     # Loop through locations again, this time determining if this image goes with this location.
-                #     for location in self.locations:
-                #         if location['start'] < summary_maya < location['end']:
-                #             location['summaries'].append(summary)
-                #             self.all_summaries_with_location.append(SUMMARIES)
+        return hashlib.md5(str(self.summaries).encode()).hexdigest()
 
     def media_count(self):
         image_count = 0

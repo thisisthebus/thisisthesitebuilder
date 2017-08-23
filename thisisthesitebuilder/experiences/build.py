@@ -10,7 +10,8 @@ from thisisthesitebuilder.utils.yaml_loader import yaml_ordered_load
 
 class EraBuilder(object):
 
-    def __init__(self, summaries, locations, images, places):
+    def __init__(self, build_meta, summaries, locations, images, places):
+        self.build_meta = build_meta
         self.summaries = summaries
         self.locations = locations
         self.images = images
@@ -23,10 +24,10 @@ class EraBuilder(object):
         experience_dict['description'] = parse_markdown_and_django_template(experience_dict['description'])
         return experience_dict
 
-    def era_from_yaml(self, yaml_filename):
+    def era_from_yaml(self, yaml_filename, build_meta):
         era_dict = self.era_meta_from_yaml(yaml_filename)
         slug = yaml_filename.rstrip('.yaml').split('/')[-1]
-        era = Era(slug=slug, **era_dict)
+        era = Era(slug=slug, build_meta=build_meta, **era_dict)
 
         return era
 
@@ -39,7 +40,7 @@ class EraBuilder(object):
         else:
             slug = right_most
 
-        experience = Experience(slug=slug, **experience_dict)
+        experience = Experience(slug=slug, build_meta=self.build_meta, **experience_dict)
 
         experience.start_day = experience.start.date()
 
@@ -62,7 +63,7 @@ class EraBuilder(object):
         eras = []
 
         for era_file in era_files:
-            era = self.era_from_yaml(eras_dir + "/" + era_file)
+            era = self.era_from_yaml(eras_dir + "/" + era_file, self.build_meta)
             era.absorb_happenings()
             era.find_intersecting(experiences)
             eras.append(era)
