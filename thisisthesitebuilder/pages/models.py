@@ -34,6 +34,9 @@ class Page(object):
     def __str__(self):
         return self.name
 
+    def __repr__(self):
+        return str(self)
+
     def json_meta_filename(self):
         return (
             "%s/compiled/pages/%s.json" % (
@@ -45,7 +48,8 @@ class Page(object):
             raise RuntimeError("You need to build context for this page first.")
 
         distinguisher = str(
-            [(str(k), str(v)) for k, v in sorted(self.active_context.items())]).encode()
+            [(str(k), str(v)) for k, v in sorted(self.active_context.items())]
+        ).encode()
         return hashlib.md5(distinguisher).hexdigest()
 
     def previous_checksum(self):
@@ -127,7 +131,7 @@ class Page(object):
 
         if not force_rebuild and self.current_checksum() == self.previous_checksum():
             # No need to rebuild this page; it hasn't changed.
-            self._last_updated = self.previous_meta()['last_update']
+            self._last_updated = maya.MayaDT.from_iso8601(self.previous_meta()['last_update'])
         else:
             print("{} has changed.".format(self.name))
 
@@ -136,9 +140,9 @@ class Page(object):
                 if last_meta:
                     last_update = maya.MayaDT.from_iso8601(last_meta['last_update'])
                 else:
-                    last_update = maya.now()
+                    last_update = self.build_meta['datetime']
             else:
-                last_update = self.build_meta['datetime'].iso8601()
+                last_update = self.build_meta['datetime']
             page_meta = {'page_checksum': self.current_checksum(),
                          'last_update': last_update.iso8601()}
 

@@ -1,10 +1,12 @@
+import hashlib
 import json
+
 import maya
+from build.built_fundamentals import SUMMARIES, LOCATIONS, INTERTWINED_MEDIA
 from django.db import models
 from thisisthebus.settings.constants import TIMEZONE_UTC_OFFSET
+
 from thisisthesitebuilder.images.models import Image, Clip
-from build.built_fundamentals import SUMMARIES, LOCATIONS, IMAGES, PLACES, INTERTWINED_MEDIA
-import hashlib
 
 
 class Era(models.Model):
@@ -49,19 +51,25 @@ class Era(models.Model):
         self.locations_checksum = self.apply_locations()
         self.multimedia_checksum = self.apply_images()
         self.summaries_checksum = self.apply_summaries()
-        self.subs_checksum = hashlib.md5(str([str(s) for s in self.sub_experiences]).encode()).hexdigest()  # TODO: Check for updated lcoations, multimedia, and summaries in subs
-        self.text_checksum = hashlib.md5(self.description.encode() + self.summary.encode()).hexdigest()
+        self.subs_checksum = hashlib.md5(str([str(s) for s in
+                                              self.sub_experiences]).encode()).hexdigest()  # TODO: Check for updated lcoations, multimedia, and summaries in subs
+        self.text_checksum = hashlib.md5(
+            self.description.encode() + self.summary.encode()).hexdigest()
         self._has_absorbed_happenings = True
 
         if self.persist:
             try:
-                json_meta_filename = "%s/compiled/experiences/%s.json" % (self.build_meta['data_dir'], self.slug)
+                json_meta_filename = "%s/compiled/experiences/%s.json" % (
+                self.build_meta['data_dir'], self.slug)
                 with open(json_meta_filename, "r") as f:
                     experience_meta_json = json.loads(f.read())
 
-                self.locations_changed = self.locations_checksum != experience_meta_json['locations']
-                self.multimedia_changed = self.multimedia_checksum != experience_meta_json['multimedia']
-                self.summaries_changed = self.summaries_checksum != experience_meta_json['summaries']
+                self.locations_changed = self.locations_checksum != experience_meta_json[
+                    'locations']
+                self.multimedia_changed = self.multimedia_checksum != experience_meta_json[
+                    'multimedia']
+                self.summaries_changed = self.summaries_checksum != experience_meta_json[
+                    'summaries']
                 self.subs_changed = self.subs_checksum != experience_meta_json['subs']
                 self.text_changed = self.text_checksum != experience_meta_json['text']
 
@@ -75,7 +83,7 @@ class Era(models.Model):
 
             if self.locations_changed or self.multimedia_changed or self.summaries_changed or self.subs_changed or self.text_changed:
                 self.has_changed = True
-                self.results_meta = {
+                self.previous_meta = {
                     "locations": self.locations_checksum,
                     "multimedia": self.multimedia_checksum,
                     "summaries": self.summaries_checksum,
@@ -83,16 +91,19 @@ class Era(models.Model):
                     "text": self.text_checksum,
                     "datetime": self.build_meta['datetime'].iso8601(),
                     "build": self.build_meta['data_checksum'],
+                    "what_changed": (
+                    self.locations_changed, self.multimedia_changed, self.summaries_changed,
+                    self.subs_changed, self.text_changed)
                 }
                 with open(json_meta_filename, "w") as f:
                     f.seek(0)
-                    f.write(json.dumps(self.results_meta, indent=2, sort_keys=True))
+                    f.write(json.dumps(self.previous_meta, indent=2, sort_keys=True))
             else:
                 self.has_changed = False
-                self.results_meta = experience_meta_json
+                self.previous_meta = experience_meta_json
 
     def last_updated(self):
-        return maya.MayaDT.from_iso8601(self.results_meta['datetime'])
+        return maya.MayaDT.from_iso8601(self.previous_meta['datetime'])
 
     def apply_locations(self):
         for filename, locations_for_day in LOCATIONS.items():
@@ -101,7 +112,7 @@ class Era(models.Model):
                 try:
                     location_maya = maya.parse(day + "T" + time)
                 except TypeError:
-                    raise("Had trouble parsing date or time in %s" % filename)
+                    raise ("Had trouble parsing date or time in %s" % filename)
                 if self.start_maya <= location_maya <= self.end_maya:
                     self.all_locations.append(location)
                     # The dates match - now let's make sure that, if this is a top-level experience, that this place can be listed on it.
@@ -140,7 +151,8 @@ class Era(models.Model):
                 self._intersection.append(experience)
 
     def places(self, reverse_order=False):
-        locations = sorted(list(set(self.all_locations)), key=lambda l: l.__str__(), reverse=reverse_order)
+        locations = sorted(list(set(self.all_locations)), key=lambda l: l.__str__(),
+                           reverse=reverse_order)
         places = []
         for location in locations:
             if location.place not in places:
@@ -190,8 +202,9 @@ class Era(models.Model):
             most_significant_location = max(location_list, key=lambda l: l.significance())
             unique_place_locations.append(most_significant_location)
 
-        unique_place_locations = sorted(list(set(unique_place_locations)), key=lambda l: l.__str__(),
-                           reverse=reverse_order)
+        unique_place_locations = sorted(list(set(unique_place_locations)),
+                                        key=lambda l: l.__str__(),
+                                        reverse=reverse_order)
         return unique_place_locations
 
     def unique_places_by_field(self, field):
@@ -230,18 +243,19 @@ class Era(models.Model):
         pass
 
     def pretty_name(self):
-        return "{} ({} - {})".format(self.name, self.start_maya.slang_date(), self.end_maya.slang_date())
+        return "{} ({} - {})".format(self.name, self.start_maya.slang_date(),
+                                     self.end_maya.slang_date())
 
     def what_changed(self):
+        locations_changed, multimedia_changed, summaries_changed, subs_changed, text_changed = self.previous_meta["what_changed"]
         things_that_changed = ""
-        if self.locations_changed:
+        if locations_changed:
             things_that_changed += "locations, "
-        if self.multimedia_changed:
+        if text_changed:
+            things_that_changed += "text, "
+        if multimedia_changed:
             things_that_changed += "images and/or clips, "
-        if self.text_changed:
-            things_that_changed += "text,"
-        things_that_changed.rstrip(", ")
-        return things_that_changed
+        return things_that_changed.rstrip(", ")
 
 
 class Eras(list):
@@ -250,6 +264,7 @@ class Eras(list):
 
     The canonical use-case is for pagination.
     """
+
     def __init__(self, page_name="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.page_name = page_name
@@ -290,7 +305,6 @@ class Eras(list):
 
 
 class Experience(Era):
-
     display = models.CharField(max_length=30)
     show_locations = models.BooleanField(default=True)
     show_dates = models.BooleanField(default=True)
@@ -312,7 +326,8 @@ class Experience(Era):
                     if not applied_to_sub:
                         self.images.append(image)
 
-        return hashlib.md5(str([i.distinguisher() for i in self._all_images_including_subs]).encode()).hexdigest()
+        return hashlib.md5(
+            str([i.distinguisher() for i in self._all_images_including_subs]).encode()).hexdigest()
 
     def apply_summaries(self):
         # summaries
