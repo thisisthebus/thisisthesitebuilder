@@ -1,6 +1,6 @@
 import hashlib
 import json
-
+import maya
 import yaml
 from django.template.exceptions import TemplateDoesNotExist
 from django.template.loader import get_template
@@ -9,9 +9,9 @@ from thisisthesitebuilder.pages.parsers import parse_markdown_and_django_templat
 
 
 class Page(object):
-    def __init__(self, page_name, build_meta, template_name=None, root=False, active_context=None,
+    def __init__(self, name, build_meta, template_name=None, root=False, active_context=None,
                  passive_context=None, compact=False, force_rebuild=False):
-        self.page_name = page_name
+        self.name = name
         self.build_meta = build_meta
         self.template_name = template_name
         self.root = root
@@ -19,11 +19,11 @@ class Page(object):
         self.context_is_built = False
 
         if root:
-            self.full_page_name = "root!%s.html" % page_name
-            self.output_filename = "%s.html" % page_name
+            self.full_name = "root!%s.html" % self.name
+            self.output_filename = "%s.html" % self.name
         else:
-            self.full_page_name = "%s.html" % page_name
-            self.output_filename = "pages/%s.html" % page_name
+            self.full_name = "%s.html" % self.name
+            self.output_filename = "pages/%s.html" % self.name
 
         self.active_context = active_context or {}
         self.passive_context = passive_context or {}
@@ -32,12 +32,12 @@ class Page(object):
         self.updated = False
 
     def __str__(self):
-        return self.page_name
+        return self.name
 
     def json_meta_filename(self):
         return (
             "%s/compiled/pages/%s.json" % (
-                self.build_meta['data_dir'], self.full_page_name)).rstrip(
+                self.build_meta['data_dir'], self.full_name)).rstrip(
             ".html")
 
     def current_checksum(self):
@@ -60,15 +60,19 @@ class Page(object):
         try:
             with open(self.json_meta_filename(), "r") as f:
                 self._previous_meta = json.loads(f.read())
+                return True
         except FileNotFoundError:
             # There is no JSON meta for this page yet.
             self._previous_meta = None
+            return False
 
-    def previous_meta(self):
+    def previous_meta(self, quiet=False):
         try:
             meta = self._previous_meta
         except AttributeError:
-            self.find_previous_meta()
+            meta_exists = self.find_previous_meta()
+            if not meta_exists and not quiet:
+                raise RuntimeError("{} has no meta file, but we need one.".format(str(self)))
             meta = self._previous_meta
         return meta
 
@@ -86,11 +90,11 @@ class Page(object):
                 page_yaml = yaml.load(f)
 
                 self.active_context['compact'] = self.compact
-                self.active_context['page_name'] = self.page_name
+                self.active_context['name'] = self.name
 
                 self.active_context['title'] = self.active_context['page_title'] = page_yaml.pop(
                     'title',
-                    self.page_name)
+                    self.name)
 
                 body_content = page_yaml.pop('body_content', "")
 
@@ -123,10 +127,18 @@ class Page(object):
 
         if not force_rebuild and self.current_checksum() == self.previous_checksum():
             # No need to rebuild this page; it hasn't changed.
-            return
+            self._last_updated = self.previous_meta()['last_update']
         else:
-            print("{} has changed.".format(self.page_name))
-            last_update = self.build_meta['datetime']
+            print("{} has changed.".format(self.name))
+
+            if force_rebuild:
+                last_meta = self.previous_meta(quiet=True)
+                if last_meta:
+                    last_update = maya.MayaDT.from_iso8601(last_meta['last_update'])
+                else:
+                    last_update = maya.now()
+            else:
+                last_update = self.build_meta['datetime'].iso8601()
             page_meta = {'page_checksum': self.current_checksum(),
                          'last_update': last_update.iso8601()}
 
@@ -139,7 +151,7 @@ class Page(object):
 
             # Let's see if there's a special template for this page.
             try:
-                template = get_template('page_specific/%s' % self.full_page_name)
+                template = get_template('page_specific/%s' % self.full_name)
             except TemplateDoesNotExist:
                 template_name = self.template_name or self.active_context.get(
                     "template") or 'shared/generic-page.html'
@@ -147,3 +159,13 @@ class Page(object):
 
             self.html = template.render(self.active_context)
             self.updated = True
+            self._last_updated = last_update
+
+    def last_updated(self):
+        return self._last_updated
+
+    def url(self):
+        return self.output_filename
+
+    def pretty_name(self):
+        return self.active_context.get('title', self.name)

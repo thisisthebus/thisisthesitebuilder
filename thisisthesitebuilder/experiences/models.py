@@ -49,7 +49,8 @@ class Era(models.Model):
         self.locations_checksum = self.apply_locations()
         self.multimedia_checksum = self.apply_images()
         self.summaries_checksum = self.apply_summaries()
-        self.subs_checksum = hashlib.md5(str([s.__str__() for s in self.sub_experiences]).encode()).hexdigest()
+        self.subs_checksum = hashlib.md5(str([str(s) for s in self.sub_experiences]).encode()).hexdigest()  # TODO: Check for updated lcoations, multimedia, and summaries in subs
+        self.text_checksum = hashlib.md5(self.description.encode() + self.summary.encode()).hexdigest()
         self._has_absorbed_happenings = True
 
         if self.persist:
@@ -58,25 +59,28 @@ class Era(models.Model):
                 with open(json_meta_filename, "r") as f:
                     experience_meta_json = json.loads(f.read())
 
-                locations_changed = self.locations_checksum != experience_meta_json['locations']
-                multimedia_changed = self.multimedia_checksum != experience_meta_json['multimedia']
-                summaries_changed = self.summaries_checksum != experience_meta_json['summaries']
-                subs_changed = self.subs_checksum != experience_meta_json['subs']
+                self.locations_changed = self.locations_checksum != experience_meta_json['locations']
+                self.multimedia_changed = self.multimedia_checksum != experience_meta_json['multimedia']
+                self.summaries_changed = self.summaries_checksum != experience_meta_json['summaries']
+                self.subs_changed = self.subs_checksum != experience_meta_json['subs']
+                self.text_changed = self.text_checksum != experience_meta_json['text']
 
             except FileNotFoundError:
                 # There is no JSON meta for this page yet.
-                locations_changed = True
-                multimedia_changed = True
-                summaries_changed = True
-                subs_changed = True
+                self.locations_changed = True
+                self.multimedia_changed = True
+                self.summaries_changed = True
+                self.subs_changed = True
+                self.text_changed = True
 
-            if locations_changed or multimedia_changed or summaries_changed or subs_changed:
+            if self.locations_changed or self.multimedia_changed or self.summaries_changed or self.subs_changed or self.text_changed:
                 self.has_changed = True
                 self.results_meta = {
                     "locations": self.locations_checksum,
                     "multimedia": self.multimedia_checksum,
                     "summaries": self.summaries_checksum,
                     "subs": self.subs_checksum,
+                    "text": self.text_checksum,
                     "datetime": self.build_meta['datetime'].iso8601(),
                     "build": self.build_meta['data_checksum'],
                 }
@@ -86,6 +90,9 @@ class Era(models.Model):
             else:
                 self.has_changed = False
                 self.results_meta = experience_meta_json
+
+    def last_updated(self):
+        return maya.MayaDT.from_iso8601(self.results_meta['datetime'])
 
     def apply_locations(self):
         for filename, locations_for_day in LOCATIONS.items():
@@ -222,6 +229,20 @@ class Era(models.Model):
     def apply_summaries(self):
         pass
 
+    def pretty_name(self):
+        return "{} ({} - {})".format(self.name, self.start_maya.slang_date(), self.end_maya.slang_date())
+
+    def what_changed(self):
+        things_that_changed = ""
+        if self.locations_changed:
+            things_that_changed += "locations, "
+        if self.multimedia_changed:
+            things_that_changed += "images and/or clips, "
+        if self.text_changed:
+            things_that_changed += "text,"
+        things_that_changed.rstrip(", ")
+        return things_that_changed
+
 
 class Eras(list):
     """
@@ -323,3 +344,6 @@ class Experience(Era):
         super().add_location(location)
         if self not in location.used_in_experiences:
             location.used_in_experiences.append(self)
+
+    def url(self):
+        return "/experiences/{}.html".format(self.slug)
