@@ -7,6 +7,7 @@ from django.db import models
 from thisisthebus.settings.constants import TIMEZONE_UTC_OFFSET
 
 from thisisthesitebuilder.images.models import Image, Clip
+from thisisthesitebuilder.utils.datetime_formatting import month_day_maybe_year
 
 
 class Era(models.Model):
@@ -243,8 +244,14 @@ class Era(models.Model):
         pass
 
     def pretty_name(self):
-        return "{} ({} - {})".format(self.name, self.start_maya.slang_date(),
-                                     self.end_maya.slang_date())
+        return "{} ({} - {})".format(self.name, self.start_date(),
+                                     self.end_date())
+
+    def start_date(self):
+        return month_day_maybe_year(self.start_maya, self.build_meta['datetime'])
+
+    def end_date(self):
+        return month_day_maybe_year(self.end_maya, self.build_meta['datetime'])
 
     def what_changed(self):
         locations_changed, multimedia_changed, summaries_changed, subs_changed, text_changed = self.previous_meta["what_changed"]
