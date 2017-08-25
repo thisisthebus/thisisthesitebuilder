@@ -254,7 +254,7 @@ class Era(models.Model):
         if text_changed:
             things_that_changed += "text, "
         if multimedia_changed:
-            things_that_changed += "images and/or clips, "
+            things_that_changed += "images, "
         return things_that_changed.rstrip(", ")
 
 
