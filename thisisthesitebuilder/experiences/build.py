@@ -26,7 +26,12 @@ class EraBuilder(object):
 
     def era_from_yaml(self, yaml_filename, build_meta):
         era_dict = self.era_meta_from_yaml(yaml_filename)
-        slug = yaml_filename.rstrip('.yaml').split('/')[-1]
+        right_most = yaml_filename.rstrip('.yaml').split('/')[-1]
+        if right_most == "main":
+            slug = yaml_filename.rstrip('.yaml').split('/')[-2]
+        else:
+            slug = right_most
+
         era = Era(slug=slug, build_meta=build_meta, **era_dict)
 
         return era
@@ -57,10 +62,18 @@ class EraBuilder(object):
         return experience
 
     def build_eras(self, eras_dir, experiences=()):
+        """
+        TODO: Dehydrate with build_experiences
+        """
         eras_dir_listing = list(os.walk(eras_dir))
+        era_dirs = eras_dir_listing[0][1]
         era_files = eras_dir_listing[0][2]
 
         eras = []
+
+        for era_dir in era_dirs:
+            era = self.build_eras(eras_dir + "/" + era_dir)[0]
+            eras.append(era)
 
         for era_file in era_files:
             era = self.era_from_yaml(eras_dir + "/" + era_file, self.build_meta)
@@ -69,7 +82,6 @@ class EraBuilder(object):
             eras.append(era)
 
         return sorted(eras, key=lambda e: e.start_maya, reverse=True)
-
 
     def build_experiences(self, experiences_dir):
 

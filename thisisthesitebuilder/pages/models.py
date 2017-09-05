@@ -6,6 +6,7 @@ from django.template.exceptions import TemplateDoesNotExist
 from django.template.loader import get_template
 
 from thisisthesitebuilder.pages.parsers import parse_markdown_and_django_template
+from thisisthesitebuilder.utils.yaml_loader import md_field_from_file
 
 
 class Page(object):
@@ -102,19 +103,24 @@ class Page(object):
 
                 body_content = page_yaml.pop('body_content', "")
 
-                if not body_content:
-                    try:
-                        body_content_filename = (
-                            "%s/authored/pages/%s" % (self.data_dir, self.full_page_name)).replace(
-                            ".html",
-                            "-body.md")
-                        with open(body_content_filename, "r") as f:
-                            body_content = f.read()
-                    except FileNotFoundError:
-                        pass
 
-                self.active_context['body_content'] = parse_markdown_and_django_template(
-                    body_content)
+                if not body_content:
+                    body_content = md_field_from_file(self.build_meta['data_dir'], "pages", self.name,
+                                       "-body")
+                #     try:
+                #         body_content_filename = (
+                #             "%s/authored/pages/%s" % (self.build_meta['data_dir'], self.full_page_name)).replace(
+                #             ".html",
+                #             "-body.md")
+                #         with open(body_content_filename, "r") as f:
+                #             body_content = f.read()
+                #     except FileNotFoundError:
+                #         pass
+                #
+
+                if body_content:
+                    self.active_context['body_content'] = parse_markdown_and_django_template(
+                        body_content)
 
                 self.active_context.update(page_yaml)
 
