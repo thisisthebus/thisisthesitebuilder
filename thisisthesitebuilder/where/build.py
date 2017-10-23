@@ -34,9 +34,9 @@ def process_locations(places):
                 locations_for_day[time] = location
         locations[day] = OrderedDict(sorted(locations_for_day.items(), key=lambda l: str(l)))
 
-    for place in places.values():
+    for place_slug, place in places.items():
         if not place.is_used_in_location:
-            print("*** {} is not used as a location".format(place))
+            print("*** {} is not used as a location".format(place_slug))
 
     print("Process {count} locations at {place_count} places.".format(count=len(locations), place_count=len(places)))
 

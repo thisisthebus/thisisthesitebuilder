@@ -15,9 +15,10 @@ class Place(object):
     thumb_width = 280
     thumb_height = 220
 
-    def __init__(self, yaml_checksum, lat, lon, small_name, big_name, thumb_style, thumb_zoom,
+    def __init__(self, yaml_checksum, slug, lat, lon, small_name, big_name, thumb_style, thumb_zoom,
                  use_both_names_for_slug, link_zoom, bearing=0, pitch=0,
                  show_on_top_level_experience=False, small_link=None, significance=0):
+        self.slug = slug
         self.yaml_checksum = yaml_checksum
         self.lat = lat
         self.lon = lon
@@ -25,7 +26,6 @@ class Place(object):
         self.big_name = big_name
         self.thumb_style = thumb_style
         self.thumb_zoom = thumb_zoom
-        self.use_both_names_for_slug = use_both_names_for_slug
         self.link_zoom = link_zoom
 
         self.bearing = bearing
@@ -44,33 +44,33 @@ class Place(object):
         return "{} - {}".format(self.small_name, self.big_name)
 
     @staticmethod
-    def from_yaml(place_name):
-        with open("%s/authored/places/%s" % (DATA_DIR, place_name), "r") as f:
+    def from_yaml(slug):
+        with open("%s/authored/places/%s" % (DATA_DIR, slug), "r") as f:
             authored_place = yaml.load(f)
             f.seek(0)
             checksum = hashlib.md5(bytes(f.read(), encoding='utf-8')).hexdigest()
 
-        place = Place(yaml_checksum=checksum, **authored_place)
+        place = Place(yaml_checksum=checksum, slug=slug, **authored_place)
 
         return place
 
-    def slug(self):
-        slug = self.small_name.replace(" ", "-").lower()
-
-        if self.use_both_names_for_slug:
-            slug += self.big_name.replace(" ", "-").replace(",", "").lower()
-
-        return slug
+    # def slug(self):
+    #     slug = self.small_name.replace(" ", "-").lower()
+    #
+    #     if self.use_both_names_for_slug:
+    #         slug += self.big_name.replace(" ", "-").replace(",", "").lower()
+    #
+    #     return slug
 
     def filename(self):
-        return "%s/compiled/places/%s" % (DATA_DIR, self.slug())
+        return "%s/compiled/places/%s" % (DATA_DIR, self.slug)
 
     def compiled_is_current(self):
         '''
         Looks at the compiled JSON version.  If checksum matches, returns the JSON representation.  Otherwise, False.
         '''
         try:
-            with open("%s/compiled/places/%s" % (DATA_DIR, self.slug()), 'r') as f:
+            with open("%s/compiled/places/%s" % (DATA_DIR, self.slug), 'r') as f:
                 json_representation = json.loads(f.read())
                 checksum = json_representation.get('yaml_checksum')
                 if checksum == self.yaml_checksum:
@@ -112,7 +112,7 @@ class Place(object):
             print(response.content)
 
         print("Content Type is %s" % response.headers['Content-Type'])
-        self.thumb_filename = "%s.%s" % (self.slug(), response.headers['Content-Type'].split('/')[1])
+        self.thumb_filename = "%s.%s" % (self.slug, response.headers['Content-Type'].split('/')[1])
 
         if self.yaml_checksum:
             self.yaml_checksum = self.yaml_checksum
