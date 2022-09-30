@@ -19,12 +19,14 @@ class Page(object):
 
         self.context_is_built = False
 
-        if root:
-            self.full_name = "root!%s.html" % self.name
-            self.output_filename = "%s.html" % self.name
-        else:
-            self.full_name = "%s.html" % self.name
-            self.output_filename = "pages/%s.html" % self.name
+        # if root:
+        #     self.full_name = "root!%s.html" % self.name
+        #     self.output_filename = "%s.html" % self.name
+        # else:
+        #     self.full_name = "%s.html" % self.name
+        #     self.output_filename = "pages/%s.html" % self.name
+        self.full_name = "%s.html" % self.name
+        self.output_filename = "%s.html" % self.name
 
         self.active_context = active_context or {}
         self.passive_context = passive_context or {}
@@ -92,7 +94,7 @@ class Page(object):
 
         try:
             with open(yaml_file, "r") as f:
-                page_yaml = yaml.load(f)
+                page_yaml = yaml.safe_load(f)
 
                 self.active_context['compact'] = self.compact
                 self.active_context['name'] = self.name

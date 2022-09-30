@@ -27,10 +27,11 @@ class PageBuilder(object):
 
         page.update_from_yaml(yaml_filename)
 
-        page.render()
+        page.render(force_rebuild=True)
 
         if page.updated:
-            with open("%s/%s" % (self.build_meta['frontend_dir'], page.output_filename), "w+") as f:
+            final_output_filename = "%s/%s" % (self.build_meta['frontend_dir'], page.output_filename)
+            with open(final_output_filename, "w+") as f:
                 f.write(page.html)
 
         return page
