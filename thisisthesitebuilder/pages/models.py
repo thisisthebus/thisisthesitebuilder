@@ -1,5 +1,7 @@
 import hashlib
 import json
+import pathlib
+
 import maya
 import yaml
 from django.template.exceptions import TemplateDoesNotExist
@@ -10,7 +12,7 @@ from thisisthesitebuilder.utils.yaml_loader import md_field_from_file
 
 
 class Page(object):
-    def __init__(self, name, build_meta, template_name=None, root=False, active_context=None,
+    def __init__(self, name, build_meta, directory=None, template_name=None, root=False, active_context=None,
                  passive_context=None, compact=False, force_rebuild=False):
         self.name = name
         self.build_meta = build_meta
@@ -19,12 +21,13 @@ class Page(object):
 
         self.context_is_built = False
 
-        # if root:
-        #     self.full_name = "root!%s.html" % self.name
-        #     self.output_filename = "%s.html" % self.name
-        # else:
-        #     self.full_name = "%s.html" % self.name
-        #     self.output_filename = "pages/%s.html" % self.name
+        if directory:
+            self.full_directory = f"{self.json_meta_directory()}/{directory}"
+        else:
+            self.full_directory = f"{self.json_meta_directory()}"
+
+        pathlib.Path(self.full_directory).mkdir(parents=True, exist_ok=True)
+
         self.full_name = "%s.html" % self.name
         self.output_filename = "%s.html" % self.name
 
@@ -40,11 +43,12 @@ class Page(object):
     def __repr__(self):
         return str(self)
 
+    def json_meta_directory(self):
+        return "%s/compiled/pages" % self.build_meta['data_dir']
+
     def json_meta_filename(self):
-        return (
-            "%s/compiled/pages/%s.json" % (
-                self.build_meta['data_dir'], self.full_name)).rstrip(
-            ".html")
+        name_without_extension = self.full_name.rstrip(".html")
+        return f"{self.full_directory}/{name_without_extension}.json"
 
     def current_checksum(self):
         if not self.context_is_built:
@@ -105,10 +109,9 @@ class Page(object):
 
                 body_content = page_yaml.pop('body_content', "")
 
-
                 if not body_content:
                     body_content = md_field_from_file(self.build_meta['data_dir'], "pages", self.name,
-                                       "-body")
+                                                      "-body")
                 #     try:
                 #         body_content_filename = (
                 #             "%s/authored/pages/%s" % (self.build_meta['data_dir'], self.full_page_name)).replace(
